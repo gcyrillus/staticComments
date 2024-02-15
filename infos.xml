@@ -2,8 +2,8 @@
 	<document>
 	<title><![CDATA[Static Comments]]></title>
 	<author><![CDATA[G.Cyrille]]></author>
-	<version>0.1</version>
-	<date>2024-01-30</date>
+	<version>0.2</version>
+	<date>2024-02-15</date>
 	<site>https://re7net.com</site>
 	<description><![CDATA[Ajoute aux pages statique choisies le formulaire de commentaire et le captcha natif de PluXml. Formulaire injecté via javascript]]></description>
 	<scope></scope>
