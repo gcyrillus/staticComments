@@ -12,8 +12,10 @@
 	$plug = $this->plxMotor->plxPlugins->getInstance('StaticComments');	
 	
 	#est ce une page statique configurée pour les commentaires ?
-	$var['statics'] = $plug->getParam('statics')=='null' ? '[]': $plug->getParam('statics');
-	$staticSelected = json_decode($var['statics']);
+	$var['statics']     = $plug->getParam('statics')    == false||null ? '[]': $plug->getParam('statics');
+	$var['staticsForm'] = $plug->getParam('staticsForm')== false||null ? '[]': $plug->getParam('staticsForm');
+	$staticSelected     = json_decode($var['statics']);
+	$staticFormSelected = json_decode($var['staticsForm']);
 	
 	if(in_array($this->staticId(), $staticSelected)) {
     ?>
@@ -54,7 +56,7 @@
             $row ='<p id="com_message" class="#com_class"><strong>#com_message</strong></p>';   
             
             # As t-on de nouveaux commentaires ?
-            if(isset($_POST)){
+            if(isset($_POST) && in_array($this->staticId(), $staticFormSelected)){
                 # color boite message par défaut
                 $color = 'orange';
                 $level='level-0';
@@ -63,12 +65,12 @@
                     if( $_POST['name'] =='' OR $_POST['content'] =='') {
                         $_SESSION['msgcom'] =  L_NEWCOMMENT_FIELDS_REQUIRED;
                     }           
-                    if(!empty($this->aConf['capcha']) AND (empty($_SESSION['capcha_token']) OR  empty($_POST['capcha_token']) or ($_SESSION['capcha_token'] != $_POST['capcha_token']))) {
+                    if($captcha !='0' AND (empty($_SESSION['capcha_token']) OR  empty($_POST['capcha_token']) or ($_SESSION['capcha_token'] != $_POST['capcha_token']))) {
                         $_SESSION['msgcom'] .= ' '. L_NEWCOMMENT_ERR_ANTISPAM;
                     }       
                     else {      
                         # On vérifie que le capcha est correct
-                        if($this->plxMotor->aConf['capcha'] == 0 OR $_SESSION['capcha'] == sha1($_POST['rep'])) {
+                        if($captcha =='0' OR $this->plxMotor->aConf['capcha'] == 0 OR $_SESSION['capcha'] == sha1($_POST['rep'])) {
                             if(isset($_POST['level'])) 
                             {
                                 $level = trim($_POST['level']) ;
@@ -124,7 +126,9 @@
                 #############################
                 
                 # extraction de l'url
-                $url = $this->plxMotor->urlRewrite('?static' . $this->staticId() . '/' . $this->plxMotor->aStats[str_pad($this->staticId(), 3, '0', STR_PAD_LEFT)]['url'] );
+                if (array_key_exists(str_pad($this->staticId(), 3, '0', STR_PAD_LEFT), $this->plxMotor->aStats)) { $name ='static' . $this->staticId() . '/' . $this->plxMotor->aStats[str_pad($this->staticId(), 3, '0', STR_PAD_LEFT)]['url'];}
+                else {$name=$this->staticId();}
+                $url = $this->plxMotor->urlRewrite('?'.$name);
                 
                 # generation du lien
                 $link = $this->plxMotor->urlRewrite($url."/page");
@@ -158,7 +162,7 @@
                     <blockquote>
                     <p class="content_com">'.$val['content'].'</p>
                     </blockquote>';
-                    if($this->plxMotor->aConf['allow_com']){
+                    if($this->plxMotor->aConf['allow_com'] && in_array($this->staticId(), $staticFormSelected)){
                         echo '<a rel="nofollow" href="#form" onclick="replyCom(\''.trim($val['num']).'\');">'.$this->getLang('REPLY').'</a>';
                     }
                     echo '</div>
@@ -176,14 +180,14 @@
                 <nav>
                     <ul class="pagination text-center center bordered">
                         <!-- Lien vers la page précédente (si on ne se trouve pas sur la 1ère page) -->
-                        <?= ($currentPage > 1)  ? "<li class=\"page-item\" ><a href=\"".$link . ($currentPage - 1) ."\" class=\"page-link\">".L_PAGINATION_PREVIOUS."</a></li>" : "" ?>
+                        <?= ($currentPage > 1)  ? "<li class=\"page-item\" ><a href=\"".$link . ($currentPage - 1) ."#staticsComments\" class=\"page-link\">".L_PAGINATION_PREVIOUS."</a></li>" : "" ?>
                         
                         <?php if($intermediaire == 1)  {
                             for($page = 1; $page <= $pages; $page++) {
                                 # Lien vers chacune des pages (activé si on se trouve sur la page correspondante
                                 echo '<li class="page-item ';
                                 if($currentPage == $page)  echo 'active';
-                                echo "\"><a href=\"".$link.$page ."\" class=\"page-link\">".$page."</a></li>";
+                                echo "\"><a href=\"".$link.$page ."#staticsComments\" class=\"page-link\">".$page."</a></li>";
                             }
                         }
                         else {
@@ -193,7 +197,7 @@
                             
                         }   ?>
                         <!-- Lien vers la page suivante (si on ne se trouve pas sur la dernière page) -->
-                        <?= ($currentPage < $pages) ? " <li class=\"page-item\"><a href=\"".$link.($currentPage + 1 )."\" class=\"page-link\">".L_PAGINATION_NEXT."</a></li>" : "" ?>
+                        <?= ($currentPage < $pages) ? " <li class=\"page-item\"><a href=\"".$link.($currentPage + 1 )."#staticsComments\" class=\"page-link\">".L_PAGINATION_NEXT."</a></li>" : "" ?>
                         
                     </ul>
                 </nav>
@@ -214,98 +218,106 @@
                 
             }
             $row = str_replace('#com_message',$message , $row);
-        ?>
-        <script>
-            const myformtpl =`
-            <template id="myform">
-            <h3>
-            <?php $this->lang('WRITE_A_COMMENT') ?>
-        </h3>
-        <form id="form" action="<?php echo $_SERVER['REQUEST_URI']; ?>#form" method="post">
             
-            <fieldset>
+            if(in_array($this->staticId(), $staticFormSelected)) {
+            ?>
+            <script>
+                const myformtpl =`
+                <template id="myform">
+                <h3>
+                <?php $this->lang('WRITE_A_COMMENT') ?>
+            </h3>
+            <form id="form" action="<?php echo $_SERVER['REQUEST_URI']; ?>#form" method="post">
                 
-                <div class="grid">
-                    <div class="col sml-12">
-                        <label for="id_name"><?php $this->lang('NAME') ?>* :</label>
-                        <input id="id_name" name="name" type="text" size="20" value="" maxlength="30" required="required" />
+                <fieldset>
+                    
+                    <div class="grid">
+                        <div class="col sml-12">
+                            <label for="id_name"><?php $this->lang('NAME') ?>* :</label>
+                            <input id="id_name" name="name" type="text" size="20" value="" maxlength="30" required="required" />
+                        </div>
                     </div>
-                </div>
-                <div class="grid">
-                    <div class="col sml-12 lrg-6">
-                        <label for="id_mail"><?php $this->lang('EMAIL') ?> :</label>
-                        <input id="id_mail" name="mail" type="text" size="20" value="" />
+                    <div class="grid">
+                        <div class="col sml-12 lrg-6">
+                            <label for="id_mail"><?php $this->lang('EMAIL') ?> :</label>
+                            <input id="id_mail" name="mail" type="text" size="20" value="" />
+                        </div>
+                        <div class="col sml-12 lrg-6">
+                            <label for="id_site"><?php $this->lang('WEBSITE') ?> :</label>
+                            <input id="id_site" name="site" type="text" size="20" value="" />
+                        </div>
                     </div>
-                    <div class="col sml-12 lrg-6">
-                        <label for="id_site"><?php $this->lang('WEBSITE') ?> :</label>
-                        <input id="id_site" name="site" type="text" size="20" value="" />
+                    <div class="grid">
+                        <div class="col sml-12">
+                            <div id="id_answer"></div>
+                            <label for="id_content" class="lab_com"><?php $this->lang('COMMENT') ?>* :</label>
+                            <textarea id="id_content" name="content" cols="35" rows="6" required="required"></textarea>
+                        </div>
                     </div>
-                </div>
-                <div class="grid">
-                    <div class="col sml-12">
-                        <div id="id_answer"></div>
-                        <label for="id_content" class="lab_com"><?php $this->lang('COMMENT') ?>* :</label>
-                        <textarea id="id_content" name="content" cols="35" rows="6" required="required"></textarea>
+                    
+                    <?php echo $row;        
+                    if($captcha == 1 ): ?>
+                    
+                    <div class="grid">
+                        <div class="col sml-12">
+                            <label for="id_rep"><strong><?php echo $this->lang('ANTISPAM_WARNING') ?></strong>*</label>
+                            <?php
+                                $this->plxMotor->plxCapcha = new plxCapcha(); # Création objet captcha
+                                $this->capchaQ(); 
+                            ?>
+                            <input id="id_rep" name="rep" type="text" size="2" maxlength="1" style="width: auto; display: inline;" required="required" />
+                        </div>
                     </div>
-                </div>
-                
-                <?php echo $row;        
-                if($captcha == 1 ): ?>
-                
-                <div class="grid">
-                    <div class="col sml-12">
-                        <label for="id_rep"><strong><?php echo $this->lang('ANTISPAM_WARNING') ?></strong>*</label>
-                        <?php
-                            $this->plxMotor->plxCapcha = new plxCapcha(); # Création objet captcha
-                            $this->capchaQ(); 
-                        ?>
-                        <input id="id_rep" name="rep" type="text" size="2" maxlength="1" style="width: auto; display: inline;" required="required" />
+                    
+                    <?php endif; ?>     
+                    
+                    <div class="grid">
+                        <div class="col sml-12">
+                            <input type="hidden" id="num" name="num" value="<?php echo $num + 1 ?>"/>
+                            <input type="hidden" id="id_parent" name="parent" value="" />
+                            <input class="blue" type="submit" value="<?php $this->lang('SEND') ?>" />
+                        </div>
                     </div>
-                </div>
-                
-                <?php endif; ?>     
-                
-                <div class="grid">
-                    <div class="col sml-12">
-                        <input type="hidden" id="num" name="num" value="<?php echo $num + 1 ?>"/>
-                        <input type="hidden" id="id_parent" name="parent" value="" />
-                        <input class="blue" type="submit" value="<?php $this->lang('SEND') ?>" />
-                    </div>
-                </div>
-                
-            </fieldset>
+                    
+                </fieldset>
             
-        </form>
-    </template>`;
-</script>
-
-<script>
-    window.addEventListener("load", (event) => {
-        document.body.insertAdjacentHTML( 'afterbegin', myformtpl);
-        const MyForm =document.querySelector('#staticsComments');
-        let template = document.getElementById("myform");
-        let templateContent = template.content;
-        MyForm.appendChild(templateContent);
-    });
-</script>
-<script>
-    function replyCom(idCom) {
-        document.getElementById('id_answer').innerHTML='<?php $this->lang('REPLY_TO'); ?> :';
-        document.getElementById('id_answer').innerHTML+=document.getElementById('com-'+idCom).innerHTML;
-        document.getElementById('id_answer').innerHTML+='<input type="hidden" name="index" value="'+document.getElementById('com-'+idCom).getAttribute('data-index') +'">';
-        document.getElementById('id_answer').innerHTML+='<input type="hidden" name="level" value="'+document.getElementById('com-'+idCom).getAttribute('data-level') +'">';
-        document.getElementById('id_answer').innerHTML+='<a rel="nofollow" href="#form" onclick="cancelCom()"><?php $this->lang('CANCEL'); ?></a>';
-        document.getElementById('id_answer').style.display='inline-block';
-        document.getElementById('id_parent').value=idCom;
-        document.getElementById('id_content').focus();
-    }
-    function cancelCom() {
-        document.getElementById('id_answer').style.display='none';
-        document.getElementById('id_parent').value='';
-        document.getElementById('com_message').innerHTML='';
-    }
-    var parent = document.getElementById('id_parent').value;
-    if(parent!='') { replyCom(parent) }
-</script>
-</div>
-<?php } ?>
+            </form>
+            </template>`;
+            </script>
+            <?php }
+            else { ?>
+            <script>
+            const myformtpl =``;
+            </script>
+            <?php    } ?>
+            
+            <script>
+            window.addEventListener("load", (event) => {
+            document.body.insertAdjacentHTML( 'afterbegin', myformtpl);
+            const MyForm =document.querySelector('#staticsComments');
+            let template = document.getElementById("myform");
+            let templateContent = template.content;
+            MyForm.appendChild(templateContent);
+            });
+            </script>
+            <script>
+            function replyCom(idCom) {
+            document.getElementById('id_answer').innerHTML='<?php $this->lang('REPLY_TO'); ?> :';
+            document.getElementById('id_answer').innerHTML+=document.getElementById('com-'+idCom).innerHTML;
+            document.getElementById('id_answer').innerHTML+='<input type="hidden" name="index" value="'+document.getElementById('com-'+idCom).getAttribute('data-index') +'">';
+            document.getElementById('id_answer').innerHTML+='<input type="hidden" name="level" value="'+document.getElementById('com-'+idCom).getAttribute('data-level') +'">';
+            document.getElementById('id_answer').innerHTML+='<a rel="nofollow" href="#form" onclick="cancelCom()"><?php $this->lang('CANCEL'); ?></a>';
+            document.getElementById('id_answer').style.display='inline-block';
+            document.getElementById('id_parent').value=idCom;
+            document.getElementById('id_content').focus();
+            }
+            function cancelCom() {
+            document.getElementById('id_answer').style.display='none';
+            document.getElementById('id_parent').value='';
+            document.getElementById('com_message').innerHTML='';
+            }
+            var parent = document.getElementById('id_parent').value;
+            if(parent!='') { replyCom(parent) }
+            </script>
+            </div>
+            <?php } ?>            
