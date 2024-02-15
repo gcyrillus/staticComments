@@ -1,4 +1,4 @@
-15/02/2024
+15/02/2024 Version 0.2 
 [+]  pagination : add anchor in url to remain at comments level
 FIX captcha test while posting a new comment
 FIX Pagination link for plugin's static pages
